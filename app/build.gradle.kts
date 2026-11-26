@@ -5,7 +5,6 @@ plugins {
 }
 
 val runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-val keystoreFile = file("release.jks")
 
 android {
     namespace = "com.trystan.videonotes"
@@ -19,22 +18,11 @@ android {
         versionName = "1.0.$runNumber"
     }
 
-    signingConfigs {
-        create("release") {
-            if (keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = System.getenv("KS_PASS")
-                keyAlias = "videonotes"
-                keyPassword = System.getenv("KS_PASS")
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = if (keystoreFile.exists()) signingConfigs.getByName("release")
-            else signingConfigs.getByName("debug")
+            // GitHub keeps the same build key between runs, so new versions install over the old one.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
