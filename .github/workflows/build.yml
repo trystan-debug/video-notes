@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,3 +38,12 @@ jobs:
         with:
           name: VideoNotes-apk
           path: VideoNotes.apk
+
+      - name: Publish to Releases (tap to download on your phone)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0.${{ github.run_number }}" VideoNotes.apk \
+            --title "Video Notes 1.0.${{ github.run_number }}" \
+            --notes "Tap VideoNotes.apk to download and install." --latest
