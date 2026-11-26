@@ -78,6 +78,7 @@ jobs:
           api-level: 34
           target: google_apis_playstore
           arch: x86_64
+          profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-front emulated -camera-back emulated
           script: python3 scripts/smoke.py
