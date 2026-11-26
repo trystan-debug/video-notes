@@ -25,10 +25,15 @@ def note(msg):
     results.append(msg)
 
 
+last_xml = ""
+
+
 def find(label, tries=8):
+    global last_xml
     for _ in range(tries):
-        adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
+        d = adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
         xml = adb("shell", "cat", "/sdcard/ui.xml")
+        last_xml = d + "\n" + xml
         for m in re.finditer(r"<node [^>]*>", xml):
             n = m.group(0)
             if f'text="{label}"' in n or f'content-desc="{label}"' in n:
@@ -43,7 +48,8 @@ def find(label, tries=8):
 def tap(label):
     p = find(label)
     if not p:
-        note(f"Could not find '{label}' on screen")
+        labels = re.findall(r'(?:text|content-desc)="([^"]+)"', last_xml)
+        note(f"Could not find '{label}'. On screen: {labels[:40]} | dump: {last_xml[:300]}")
         return False
     adb("shell", "input", "tap", str(p[0]), str(p[1]))
     note(f"Tapped '{label}'")
@@ -73,7 +79,7 @@ adb("logcat", "-c")
 
 # Scenario 1: record -> stop -> reopen (what crashed on the phone)
 launch()
-time.sleep(4)
+time.sleep(10)
 note(f"Scenario 1 opened, alive={alive()}")
 if tap("Record"):
     time.sleep(5)
