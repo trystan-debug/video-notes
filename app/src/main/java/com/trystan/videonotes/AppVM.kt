@@ -38,16 +38,17 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         // If the app died mid-transcript, don't retry that note automatically (it would crash again).
         val crashedId = runCatching { workingMarker.takeIf { it.exists() }?.readText()?.trim() }.getOrNull()
         workingMarker.delete()
-        if (!crashedId.isNullOrBlank()) {
-            store.update(crashedId) {
+        // A note still marked "working" means the app died mid-transcript.
+        val crashed = notes.value.filter { it.status == Note.STATUS_WORKING || it.id == crashedId }
+        crashed.forEach { c ->
+            store.update(c.id) {
                 it.copy(status = Note.STATUS_FAILED,
                     error = "The app closed while transcribing this note. Your video is safe. Tap Try again, or switch to Whisper in Settings.")
             }
         }
         viewModelScope.launch {
             delay(1500) // let the screen show first
-            notes.value.filter { it.status == Note.STATUS_PENDING || it.status == Note.STATUS_WORKING }
-                .forEach { process(it.id) }
+            notes.value.filter { it.status == Note.STATUS_PENDING }.forEach { process(it.id) }
         }
     }
 

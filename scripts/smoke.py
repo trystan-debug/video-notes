@@ -138,7 +138,9 @@ seed = (
     '[{"id":"s2","name":"VideoNote_seed","videoUri":"content://media/external/video/media/999999",'
     '"createdAt":1764000000000,"durationMs":65000,"title":"Sponsors for the next event",'
     '"folder":"Sponsors & Event","status":"done","segments":[{"t":0,"x":"We need sponsors for the next event"},'
-    '{"t":4000,"x":"Call the venue about pricing"}],"approxTimes":true,"keywords":["sponsors","event","venue"]}]'
+    '{"t":4000,"x":"Call the venue about pricing"}],"approxTimes":true,"keywords":["sponsors","event","venue"]},'
+    '{"id":"s3","name":"VideoNote_stuck","videoUri":"content://media/external/video/media/999998",'
+    '"createdAt":1764100000000,"durationMs":12000,"title":"Stuck note","folder":"Inbox","status":"working"}]'
 )
 existing = adb("shell", "run-as", PKG, "cat", "files/notes.json")
 note("Saved notes after scenario 1: " + existing[:1500])
@@ -146,7 +148,9 @@ adb("shell", f"echo '{seed}' > /data/local/tmp/seed.json")
 adb("shell", f"cat /data/local/tmp/seed.json | run-as {PKG} sh -c 'cat > files/notes.json'")
 launch()
 time.sleep(8)
-note(f"Scenario 2 (finished note) alive={alive()}")
+note(f"Scenario 2 (finished note + stuck note) alive={alive()}")
+shot("seeded home")
+note("Notes after reopening with a stuck note: " + adb("shell", "run-as", PKG, "cat", "files/notes.json")[:1200])
 if tap("Sponsors for the next event"):
     time.sleep(5)
     note(f"Opened note detail, alive={alive()}")
