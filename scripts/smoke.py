@@ -56,6 +56,31 @@ def tap(label):
     return True
 
 
+def shot(name):
+    """Small screenshot, sent back as a build annotation so it can be viewed remotely."""
+    try:
+        import base64, io
+        from PIL import Image
+        png = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=60).stdout
+        im = Image.open(io.BytesIO(png)).convert("RGB")
+        im.thumbnail((300, 660))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=45)
+        print(f"::notice title=shot {name}::" + base64.b64encode(buf.getvalue()).decode(), flush=True)
+    except Exception as e:
+        note(f"screenshot {name} failed: {e}")
+
+
+def tap_xy(x, y, why):
+    adb("shell", "input", "tap", str(x), str(y))
+    note(f"Tapped {why} at {x},{y}")
+
+
+def screen_size():
+    m = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
+    return (int(m.group(1)), int(m.group(2))) if m else (1080, 2400)
+
+
 def alive():
     return adb("shell", "pidof", PKG).strip() not in ("", "TIMEOUT")
 
@@ -81,18 +106,29 @@ adb("logcat", "-c")
 launch()
 time.sleep(10)
 note(f"Scenario 1 opened, alive={alive()}")
-if tap("Record"):
-    time.sleep(5)
-    if tap("Start recording"):
-        time.sleep(6)
-        tap("Stop recording")
-        time.sleep(25)
-        note(f"After stop, alive={alive()}")
+shot("home")
+W, H = screen_size()
+if not tap("Record"):
+    tap_xy(W // 2, int(H * 0.89), "Record (by position)")
+time.sleep(6)
+shot("record screen")
+if not tap("Start recording"):
+    tap_xy(W // 2, int(H * 0.87), "record button (by position)")
+time.sleep(7)
+shot("recording")
+if not tap("Stop recording"):
+    tap_xy(W // 2, int(H * 0.87), "stop button (by position)")
+time.sleep(5)
+shot("after stop")
+time.sleep(20)
+note(f"After stop, alive={alive()}")
+shot("after stop +20s")
 adb("shell", "am", "force-stop", PKG)
 time.sleep(2)
 launch()
 time.sleep(12)
 note(f"Reopen after recording, alive={alive()}")
+shot("reopen")
 time.sleep(10)
 note(f"Reopen +10s, alive={alive()}")
 
