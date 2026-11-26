@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,10 +32,23 @@ class AppVM(app: Application) : AndroidViewModel(app) {
 
     private val lock = Mutex()
 
+    private val workingMarker = java.io.File(app.filesDir, "working.txt")
+
     init {
-        // Pick up anything that was mid-transcript when the app closed.
-        notes.value.filter { it.status == Note.STATUS_PENDING || it.status == Note.STATUS_WORKING }
-            .forEach { process(it.id) }
+        // If the app died mid-transcript, don't retry that note automatically (it would crash again).
+        val crashedId = runCatching { workingMarker.takeIf { it.exists() }?.readText()?.trim() }.getOrNull()
+        workingMarker.delete()
+        if (!crashedId.isNullOrBlank()) {
+            store.update(crashedId) {
+                it.copy(status = Note.STATUS_FAILED,
+                    error = "The app closed while transcribing this note. Your video is safe. Tap Try again, or switch to Whisper in Settings.")
+            }
+        }
+        viewModelScope.launch {
+            delay(1500) // let the screen show first
+            notes.value.filter { it.status == Note.STATUS_PENDING || it.status == Note.STATUS_WORKING }
+                .forEach { process(it.id) }
+        }
     }
 
     fun updateMode(m: String) { mode = m; prefs.edit().putString("mode", m).apply() }
@@ -62,6 +76,7 @@ class AppVM(app: Application) : AndroidViewModel(app) {
     private suspend fun runOne(id: String) {
         val start = store.get(id) ?: return
         store.update(id) { it.copy(status = Note.STATUS_WORKING, error = null) }
+        runCatching { workingMarker.writeText(id) }
         try {
             val video = Uri.parse(start.videoUri)
             val useWhisper = mode == MODE_WHISPER && apiKey.isNotBlank()
@@ -90,7 +105,12 @@ class AppVM(app: Application) : AndroidViewModel(app) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            store.update(id) { it.copy(status = Note.STATUS_FAILED, error = e.message ?: e.javaClass.simpleName) }
+            store.update(id) {
+                it.copy(status = Note.STATUS_FAILED,
+                    error = (e.message ?: "") + " [" + e.javaClass.simpleName + "]")
+            }
+        } finally {
+            workingMarker.delete()
         }
     }
 

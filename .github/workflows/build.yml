@@ -47,3 +47,37 @@ jobs:
           gh release create "v1.0.${{ github.run_number }}" VideoNotes.apk \
             --title "Video Notes 1.0.${{ github.run_number }}" \
             --notes "Tap VideoNotes.apk to download and install." --latest
+
+  phone-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.11.1
+
+      - name: Build test copy
+        run: gradle assembleDebug --no-daemon
+
+      - name: Turn on emulator support
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run on a test phone
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis_playstore
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-front emulated -camera-back emulated
+          script: python3 scripts/smoke.py

@@ -60,6 +60,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -122,8 +124,16 @@ private fun AppRoot(vm: AppVM = viewModel()) {
     LaunchedEffect(t) {
         if (t != null) { Toast.makeText(ctx, t, Toast.LENGTH_SHORT).show(); vm.toast = null }
     }
+    var crash by remember { mutableStateOf(CrashLog.read(ctx)) }
     BackHandler(enabled = screen != Screen.Home) { screen = Screen.Home }
     Surface(Modifier.fillMaxSize(), color = Navy) {
+        val report = crash
+        if (report != null) {
+            Box(Modifier.systemBarsPadding()) {
+                CrashScreen(report) { CrashLog.clear(ctx); crash = null }
+            }
+            return@Surface
+        }
         when (val s = screen) {
             Screen.Home -> Box(Modifier.systemBarsPadding()) {
                 HomeScreen(vm, onRecord = { screen = Screen.Record }, onOpen = { screen = Screen.Detail(it) },
@@ -137,6 +147,31 @@ private fun AppRoot(vm: AppVM = viewModel()) {
                 DetailScreen(vm, s.id, onBack = { screen = Screen.Home })
             }
         }
+    }
+}
+
+// ---------- Crash report ----------
+
+@Composable
+private fun CrashScreen(report: String, onContinue: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize().padding(20.dp)) {
+        Text("The app crashed last time", fontSize = 26.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(8.dp))
+        Text("Your videos are safe. Tap Copy report and paste it to Claude so it can be fixed.", color = Muted)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = {
+                clipboard.setText(AnnotatedString(report))
+                Toast.makeText(ctx, "Report copied", Toast.LENGTH_SHORT).show()
+            }) { Text("Copy report", fontWeight = FontWeight.Bold) }
+            OutlinedButton(onClick = onContinue) { Text("Continue", fontWeight = FontWeight.Bold) }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(report, fontSize = 11.sp, color = Muted,
+            modifier = Modifier.fillMaxWidth().weight(1f).background(CardBg, RoundedCornerShape(12.dp))
+                .padding(12.dp).verticalScroll(rememberScrollState()))
     }
 }
 
@@ -395,6 +430,7 @@ private fun RecordScreen(vm: AppVM, onClose: () -> Unit) {
             }
             Box(
                 Modifier.size(84.dp).border(5.dp, Color.White, CircleShape).clip(CircleShape)
+                    .semantics { contentDescription = if (recording == null) "Start recording" else "Stop recording" }
                     .clickable { if (recording == null) start() else recording?.stop() },
                 contentAlignment = Alignment.Center,
             ) {
@@ -606,6 +642,8 @@ private fun SettingsScreen(vm: AppVM, onBack: () -> Unit) {
         Spacer(Modifier.height(6.dp))
         Text("Videos: ${Files.VIDEO_ROOT}/<folder>\nTranscripts: ${Files.TEXT_ROOT}/<folder>\nThey stay on your phone even if you delete this app.",
             color = Muted, fontSize = 14.sp)
+        Spacer(Modifier.height(16.dp))
+        Text("Version ${BuildInfo.version(LocalContext.current)}", color = Muted, fontSize = 12.sp)
         Spacer(Modifier.height(40.dp))
     }
 
